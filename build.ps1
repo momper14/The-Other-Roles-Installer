@@ -1,0 +1,1 @@
+Invoke-ps2exe '.\The Other Roles Installer.ps1'  '.\The Other Roles Installer.exe' -iconFile "Unbenannt.ico" -description "Installer for the Among Us mod The Other Roles" -version 0.0.1 -verbose
