@@ -1,5 +1,8 @@
 Param(
-    [string]$GamePath = ""
+    [string]$GamePath = "",
+    [switch]$Quiet = $false,
+    [switch]$StartGame = $false,
+    [switch]$OverrideUnknown = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -52,6 +55,9 @@ function GetGamePath {
     $GamePath = "$SteamPath\steamapps\common\Among Us"
 
     if ($null -eq $SteamPath -Or !(Test-Path $GamePath)) {
+        if ($Quiet) {
+            return ""
+        }
         $GamePath = ReadPathManual
     }
 
@@ -103,6 +109,10 @@ function GetLatesVersion {
     return ($LatestRelease.Content | ConvertFrom-Json).tag_name
 }
 
+function StartGame {
+    Start-Process "steam://rungameid/945360"
+}
+
 function DownloadAndExtractRelease {
     param (
         $GamePath,
@@ -114,13 +124,17 @@ function DownloadAndExtractRelease {
 
     Invoke-WebRequest -Uri $url -OutFile $download_path
 
-    Expand-Archive -Path $download_path -DestinationPath $GamePath -Force
+    Expand-Archive -Path $download_path -DestinationPath $GamePath -force
 
     $Version > "$GamePath\version.txt"
 
     Remove-Item -Path $download_path
 
-    $null = [System.Windows.MessageBox]::Show("The Other Roles $Version was successfully installed", "Success", 0)
+    if (!($Quiet)) {
+        $Result = [System.Windows.MessageBox]::Show("The Other Roles $LatestVersion is successfully installed. $([System.Environment]::NewLine)Start the game now?", "Successfully installed", 4)
+        if ($Result -eq "Yes") { StartGame }
+    }
+    elseif ($StartGame) { StartGame }
 }
 
 if ($GamePath -eq "" -Or !(ValidateGamePath -GamePath $GamePath)) {
@@ -134,10 +148,14 @@ $LatestVersion = GetLatesVersion
 if (!(Test-Path "$GamePath\version.txt")) {
 
     if (Test-Path "$GamePath\BepInEx") {
-        $Result = [System.Windows.MessageBox]::Show("An unknown installation was found. $([System.Environment]::NewLine)Clean and process?", "Success", 4)
 
-        if ($Result -eq "No") {
-            exit 1
+        if ($Quiet) {
+            if (!($OverrideUnknown)) { exit 1 }
+        }
+        else {
+            $Result = [System.Windows.MessageBox]::Show("An unknown installation was found. $([System.Environment]::NewLine)Clean and process?", "Unknown installation found", 4)
+
+            if ($Result -eq "No") { exit 1 }
         }
 
         CleanUp -GamePath $GamePath -IgnoreConfig $true
@@ -153,10 +171,15 @@ if (!(Test-Path "$GamePath\version.txt")) {
 $InstalledVersion = Get-Content -Path "$GamePath\version.txt" -TotalCount 1
 
 if ($LatestVersion -eq $InstalledVersion) {
-    $null = [System.Windows.MessageBox]::Show("The latest Version ($LatestVersion) is already installed.", "Already up to date", 0)
+    if (!($Quiet)) {
+        $Result = [System.Windows.MessageBox]::Show("The latest Version ($LatestVersion) is already installed. $([System.Environment]::NewLine)Start the game now?", "Already up to date", 4)
+        if ($Result -eq "Yes") { StartGame }
+    }
+    elseif ($StartGame) { StartGame }
     exit 0
 }
 
 CleanUp -GamePath $GamePath
 
 DownloadAndExtractRelease -GamePath $GamePath -Version $LatestVersion
+exit 0
